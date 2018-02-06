@@ -191,7 +191,10 @@ private:
 
   openni2::image_t last_color_image_;
   bool last_color_image_init_;
-  //Config old_config_;
+
+  openni2::image_t last_ir_image_;
+  bool last_ir_image_init_;
+//Config old_config_;
 
   // Compression Buffers:
   uint8_t* image_buf_;

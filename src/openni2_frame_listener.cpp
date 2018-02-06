@@ -125,7 +125,7 @@ void OpenNI2FrameListener::onNewFrame(openni::VideoStream& stream)
     {
       case openni::PIXEL_FORMAT_DEPTH_1_MM:
         // depth is not encoded in the typical manner, so there are not formats
-        image->pixelformat = openni2::image_t::PIXEL_FORMAT_INVALID; 
+        image->pixelformat = openni2::image_t::PIXEL_FORMAT_INVALID;
         image->row_stride = sizeof(unsigned char) * 2 * image->width;
         //image->encoding = sensor_msgs::image_encodings::TYPE_16UC1;
         //image->step = sizeof(unsigned char) * 2 * image->width;
@@ -157,6 +157,8 @@ void OpenNI2FrameListener::onNewFrame(openni::VideoStream& stream)
         //image->step = sizeof(unsigned char) * 1 * image->width;
         break;
       case openni::PIXEL_FORMAT_GRAY16:
+        image->pixelformat = openni2::image_t::PIXEL_FORMAT_LE_GRAY16;
+        image->row_stride = sizeof(unsigned char) * 2 * image->width;
         //image->encoding = sensor_msgs::image_encodings::MONO16;
         //image->step = sizeof(unsigned char) * 2 * image->width;
         break;
@@ -172,4 +174,3 @@ void OpenNI2FrameListener::onNewFrame(openni::VideoStream& stream)
 }
 
 }
-

@@ -52,11 +52,12 @@ OpenNI2Driver::OpenNI2Driver(boost::shared_ptr<lcm::LCM>& lcm, const CommandLine
     data_skip_ir_counter_(0),
     data_skip_color_counter_(0),
     data_skip_depth_counter_ (0),
-    ir_subscribers_(false),
+    ir_subscribers_(true),
     color_subscribers_(true),
     depth_subscribers_(true),
     depth_raw_subscribers_(false),
-    last_color_image_init_(false)
+    last_color_image_init_(false),
+    last_ir_image_init_(false)
 {
 
   image_buf_size_ = 640 * 480 * 10;
@@ -117,7 +118,7 @@ void OpenNI2Driver::advertiseROSTopics()
   // Asus Xtion PRO does not have an RGB camera
   if (device_->hasColorSensor())
   {
-
+    std::cout << "has color sensor\n";
 //    device_->setIRFrameCallback(boost::bind(&IRCallback, _1));
     device_->setColorFrameCallback(boost::bind(&OpenNI2Driver::colorConnectCb, this));
 //    device_->setDepthFrameCallback(boost::bind(&DepthCallback, _1));
@@ -129,6 +130,7 @@ void OpenNI2Driver::advertiseROSTopics()
 
   if (device_->hasIRSensor())
   {
+    std::cout << "has ir sensor\n";
     device_->setIRFrameCallback(boost::bind(&OpenNI2Driver::irConnectCb, this));
 //    image_transport::SubscriberStatusCallback itssc = boost::bind(&OpenNI2Driver::irConnectCb, this);
 //    ros::SubscriberStatusCallback rssc = boost::bind(&OpenNI2Driver::irConnectCb, this);
@@ -137,6 +139,7 @@ void OpenNI2Driver::advertiseROSTopics()
 
   if (device_->hasDepthSensor())
   {
+    std::cout << "has depth sensor\n";
 	    device_->setDepthFrameCallback(boost::bind(&OpenNI2Driver::depthConnectCb, this));
 //    image_transport::SubscriberStatusCallback itssc = boost::bind(&OpenNI2Driver::depthConnectCb, this);
 //    ros::SubscriberStatusCallback rssc = boost::bind(&OpenNI2Driver::depthConnectCb, this);
@@ -145,7 +148,8 @@ void OpenNI2Driver::advertiseROSTopics()
   }
 
     device_->startDepthStream();
-    device_->startColorStream();
+    //device_->startColorStream();
+    device_->startIRStream();
 
  // if (color_subscribers_ && !device_->isColorStreamStarted())
  // {
@@ -159,6 +163,7 @@ void OpenNI2Driver::advertiseROSTopics()
 
     device_->setColorFrameCallback(boost::bind(&OpenNI2Driver::newColorFrameCallback, this, _1));
     device_->setDepthFrameCallback(boost::bind(&OpenNI2Driver::newDepthFrameCallback, this, _1));
+    device_->setIRFrameCallback(boost::bind(&OpenNI2Driver::newIRFrameCallback, this, _1));
  // }
 
   ////////// CAMERA INFO MANAGER
@@ -459,12 +464,23 @@ void OpenNI2Driver::newIRFrameCallback(boost::shared_ptr<openni2::image_t> image
   {
     data_skip_ir_counter_ = 0;
 
-    if (ir_subscribers_)
+    if (ir_subscribers_ || true)
     {
     //  image->header.frame_id = ir_frame_id_;
     //  image->header.stamp = image->header.stamp + ir_time_offset_;
 
 //      pub_ir_.publish(image, getIRCameraInfo(image->width, image->height, image->header.stamp));
+
+      // Cache for publishing with depth message
+      last_ir_image_ = *image;
+      if(!last_ir_image_init_){
+        std::cout << "Received first IR image from device\n";
+      }
+      last_ir_image_init_ = true;
+
+      // Fake being the color image
+      last_color_image_ = *image;
+      last_color_image_init_ = true;
     }
   }
 }
@@ -560,14 +576,30 @@ void OpenNI2Driver::newDepthFrameCallback(boost::shared_ptr<openni2::image_t> im
       //  cam_info = getDepthCameraInfo(image->width,image->height, image->header.stamp);
       //}
 
-
       if(cl_cfg_.use_zlib > 0){
         int uncompressed_size = image->height * image->width * sizeof(short);
         unsigned long compressed_size = depth_compress_buf_size_;
         compress2(depth_compress_buf_, &compressed_size, (const Bytef*) image->data.data(), uncompressed_size,
-                  Z_BEST_SPEED);  
+                  Z_BEST_SPEED);
         image->size =(int)compressed_size;
         memcpy(&image->data[0], depth_compress_buf_, compressed_size);
+
+#if 0
+        int uncompressed_color_size =
+            last_color_image_.height * last_color_image_.row_stride;
+        unsigned long compressed_color_size = uncompressed_color_size;
+        uint8_t compress_buf[compressed_color_size];
+        int status = compress2(compress_buf, &compressed_color_size,
+                               (const Bytef*) last_color_image_.data.data(),
+                               uncompressed_color_size, Z_BEST_SPEED);
+        if (status != Z_OK) {
+          std::cout << "zlib compression of IR image failed: "
+                    << status << "\n";
+        }
+        last_color_image_.size =(int)compressed_color_size;
+        last_color_image_.data.resize(compressed_color_size);
+        memcpy(&last_color_image_.data[0], compress_buf, compressed_color_size);
+#endif
       }
 
       if (cl_cfg_.depth_standalone)
@@ -600,7 +632,7 @@ void OpenNI2Driver::newDepthFrameCallback(boost::shared_ptr<openni2::image_t> im
       //  pub_depth_.publish(floating_point_image, cam_info);
       //}
     }
-  } 
+  }
 }
 
 
